@@ -17,13 +17,8 @@ public class ClientFactory
 
     private IAuthenticationProvider? _authenticationProvider;
     private readonly HttpMessageHandler? _finalHandler;
-    private static readonly Lazy<List<DelegatingHandler>> s_handlers =
-        new(() =>
-        [
-            new APIVersionHandler(),
-            new UserAgentHandler(),
-            new RateLimitHandler(),
-        ]);
+    private readonly Lazy<List<DelegatingHandler>> _handlers =
+        new(() => [.. CreateDefaultHandlers()]);
 
     public ClientFactory(HttpMessageHandler? finalHandler = null)
     {
@@ -77,8 +72,7 @@ public class ClientFactory
         if (_authenticationProvider == null) throw new ArgumentNullException("authenticationProvider");
 
         var httpClient = new HttpClient();
-        var defaultHandlers = CreateDefaultHandlers();
-        var handler = ChainHandlersCollectionAndGetFirstLink(finalHandler: _finalHandler ?? GetDefaultHttpMessageHandler(), handlers: [.. defaultHandlers]);
+        var handler = ChainHandlersCollectionAndGetFirstLink(finalHandler: _finalHandler ?? GetDefaultHttpMessageHandler(), handlers: [.. _handlers.Value]);
 
         if (handler != null)
         {
@@ -95,18 +89,24 @@ public class ClientFactory
             httpClient.BaseAddress = new Uri(_baseUrl);
         }
 
-        return RequestAdapter.Create(_authenticationProvider, httpClient); ;
+        return RequestAdapter.Create(_authenticationProvider, httpClient);
     }
+
     /// <summary>
     /// Creates a list of default delegating handlers for the Octokit client.
     /// </summary>
     /// <returns>A list of default delegating handlers.</returns>
     public static IList<DelegatingHandler> CreateDefaultHandlers()
     {
-        var defaultHandlers = s_handlers.Value;
+        var defaultHandlers = new DelegatingHandler[]
+        {
+            new APIVersionHandler(),
+            new UserAgentHandler(),
+            new RateLimitHandler(),
+        };
         var kiotaDefaultHandlers = KiotaClientFactory.CreateDefaultHandlers();
 
-        return kiotaDefaultHandlers.Concat(defaultHandlers).ToList();
+        return [.. kiotaDefaultHandlers, .. defaultHandlers];
     }
 
     /// <summary>
@@ -169,16 +169,16 @@ public class ClientFactory
     private void AddOrCreateHandler<THandler>(THandler handler) where THandler : DelegatingHandler
     {
         // Find the index of the handler that matches the specified type
-        int index = s_handlers.Value.FindIndex(h => h is THandler);
+        int index = _handlers.Value.FindIndex(h => h is THandler);
 
         // If the handler is found, replace it with the new handler otehrwise add the new handler to the list
         if (index >= 0)
         {
-            s_handlers.Value[index] = handler;
+            _handlers.Value[index] = handler;
         }
         else
         {
-            s_handlers.Value.Add(handler);
+            _handlers.Value.Add(handler);
         }
     }
 }

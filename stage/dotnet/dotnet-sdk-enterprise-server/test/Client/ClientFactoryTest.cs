@@ -46,6 +46,15 @@ public class ClientFactoryTests
     }
 
     [Fact]
+    public void CreateDefaultHandlers_Returns_Unique_Instances()
+    {
+        var handlers1 = new HashSet<DelegatingHandler>(ClientFactory.CreateDefaultHandlers());
+        var handlers2 = new HashSet<DelegatingHandler>(ClientFactory.CreateDefaultHandlers());
+
+        Assert.False(handlers1.Overlaps(handlers2));
+    }
+
+    [Fact]
     public void ChainHandlersCollectionAndGetFirstLink_ChainsHandlersCorrectly()
     {
         var handlers = new DelegatingHandler[]
